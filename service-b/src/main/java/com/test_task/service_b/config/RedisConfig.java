@@ -1,0 +1,115 @@
+package com.test_task.service_b.config;
+
+import com.test_task.service_b.listener.InputListener;
+import jakarta.annotation.PostConstruct;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.stream.Consumer;
+import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.ReadOffset;
+import org.springframework.data.redis.connection.stream.StreamOffset;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.serializer.StringRedisSerializer;
+import org.springframework.data.redis.stream.StreamMessageListenerContainer;
+
+import java.time.Duration;
+import java.util.Map;
+
+@Configuration
+public class RedisConfig {
+
+    private final RedisConnectionFactory connectionFactory;
+    private final InputListener inputListener;
+
+    public RedisConfig(RedisConnectionFactory connectionFactory, InputListener inputListener) {
+        this.connectionFactory = connectionFactory;
+        this.inputListener = inputListener;
+    }
+
+    @Bean
+    public RedisTemplate<String, String> redisTemplate() {
+        RedisTemplate<String, String> template = new RedisTemplate<>();
+        template.setConnectionFactory(connectionFactory);
+
+        // Настройка всех необходимых сериализаторов
+        StringRedisSerializer stringSerializer = new StringRedisSerializer();
+
+        template.setKeySerializer(stringSerializer);
+        template.setValueSerializer(stringSerializer);
+
+        template.setHashKeySerializer(stringSerializer);
+        template.setHashValueSerializer(stringSerializer);
+
+        template.setDefaultSerializer(stringSerializer);
+
+
+        template.setKeySerializer(new StringRedisSerializer());
+        template.setValueSerializer(new StringRedisSerializer());
+        return template;
+    }
+
+    @Bean
+    public StreamMessageListenerContainer<String, MapRecord<String, String, String>> streamContainer() {
+        var options = StreamMessageListenerContainer.StreamMessageListenerContainerOptions
+                .<String, MapRecord<String, String, String>>builder()
+                .pollTimeout(Duration.ofMillis(500))
+                .build();
+
+        var container = StreamMessageListenerContainer.create(connectionFactory, options);
+
+        // Слушаем только output-stream без предохранителя от случайного отключения Сервисов
+        //container.receive(StreamOffset.latest("input-stream"), inputListener);
+
+// Создаем Consumer Group ПЕРЕД подключением
+        try {
+            RedisTemplate<String, String> template = redisTemplate();
+
+            try {
+                template.opsForStream().add("input-stream", Map.of("init", "init"));
+            } catch (Exception ignored) {
+            }
+
+            try {
+                template.opsForStream()
+                        .createGroup("input-stream", ReadOffset.from("0"), "service-b-group");
+                System.out.println("Created consumer group: service-b-group");
+            } catch (Exception e) {
+                System.out.println("Consumer group service-b-group already exists: " + e.getMessage());
+            }
+        } catch (Exception e) {
+            System.err.println("Error creating consumer groups: " + e.getMessage());
+        }
+
+        container.receive(
+                Consumer.from("service-b-group", "service-b-consumer"),
+                StreamOffset.create("input-stream", ReadOffset.lastConsumed()),
+                inputListener
+        );
+
+        container.start();
+        return container;
+    }
+
+    @PostConstruct
+    public void createConsumerGroups() {
+        try {
+            // Создаем стримы если их нет
+            try {
+                redisTemplate().opsForStream().add("input-stream", Map.of("init", "init"));
+            } catch (Exception e) {
+                // Стрим уже существует
+            }
+
+            try {
+                redisTemplate().opsForStream()
+                        .createGroup("input-stream", ReadOffset.from("0"), "service-b-group");
+                System.out.println("Created consumer group: service-b-group");
+            } catch (Exception e) {
+                System.out.println("Consumer group service-b-group already exists");
+            }
+        } catch (Exception e) {
+            System.err.println("Error creating consumer groups: " + e.getMessage());
+        }
+    }
+}

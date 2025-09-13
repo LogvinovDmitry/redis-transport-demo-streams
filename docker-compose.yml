@@ -1,0 +1,11 @@
+# Use root/example as user/password credentials
+version: '3.8'
+
+services:
+
+  redis:
+    image: redis:latest
+    container_name: redis-transport-demo
+    ports:
+      - "6379:6379"
+    restart: always

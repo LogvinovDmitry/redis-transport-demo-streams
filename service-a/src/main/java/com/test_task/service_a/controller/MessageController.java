@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
+import java.util.Map;
+
 
 @RestController
 @RequestMapping("/messages")
@@ -31,19 +33,9 @@ public class MessageController {
 
         CompletableFuture<String> future = messageService.createFuture(correlationId);
 
-        redisTemplate.opsForStream().add(ObjectRecord.create("input-stream", payload));
+        redisTemplate.opsForStream().add(ObjectRecord.create("input-stream", Map.of("payload", payload)));
 
-        String fullResponse = future.get(); // получаем полный ответ
+        return future.get(); // получаем ответ
 
-        String[] parts = fullResponse.split("\\|", 2);
-        if (parts.length == 2) {
-
-            System.out.println("***********************************************************");
-            System.out.println("PROCESSING MESSAGE: " + parts[1]);
-
-            return parts[1]; // возвращаем только данные без correlationId
-        }
-
-        return fullResponse;
     }
 }

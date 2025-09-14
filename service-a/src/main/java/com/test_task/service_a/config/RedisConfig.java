@@ -82,12 +82,7 @@ public class RedisConfig {
             System.err.println("Error creating consumer groups: " + e.getMessage());
         }
 
-        container.receive(
-                Consumer.from("service-a-group", "service-a-consumer"),
-                StreamOffset.create("output-stream", ReadOffset.lastConsumed()),
-                outputListener
-        );
-
+        //регистрация listener-а на конкретный stream и consumer group.
         container.receive(
                 Consumer.from("service-a-group", "service-a-consumer"),
                 StreamOffset.create("output-stream", ReadOffset.lastConsumed()),
@@ -96,28 +91,6 @@ public class RedisConfig {
 
         container.start();
         return container;
-    }
-
-    @PostConstruct
-    public void createConsumerGroups() {
-        try {
-            // Создаем стримы если их нет
-            try {
-                redisTemplate().opsForStream().add("output-stream", Map.of("init", "init"));
-            } catch (Exception e) {
-                // Стрим уже существует
-            }
-
-            try {
-                redisTemplate().opsForStream()
-                        .createGroup("output-stream", ReadOffset.from("0"), "service-a-group");
-                System.out.println("Created consumer group: service-a-group");
-            } catch (Exception e) {
-                System.out.println("Consumer group service-a-group already exists");
-            }
-        } catch (Exception e) {
-            System.err.println("Error creating consumer groups: " + e.getMessage());
-        }
     }
 
 }

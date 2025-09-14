@@ -2,6 +2,7 @@ package com.test_task.service_b.listener;
 
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.connection.stream.MapRecord;
+import org.springframework.data.redis.connection.stream.ObjectRecord;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.stream.StreamListener;
 import org.springframework.stereotype.Component;
@@ -20,23 +21,19 @@ public class InputListener implements StreamListener<String, MapRecord<String, S
     @Override
     public void onMessage(MapRecord<String, String, String> message) {
 
-        String payload = message.getValue().get("data");
-        if (payload == null) {
-            payload = message.getValue().values().stream().findFirst().orElse("");
-        }
+        String payload = message.getValue().get("payload");
+        if (payload == null) return;
 
-        String processed = payload.toUpperCase();
-
-        // Берём correlationId из payload
-        String correlationId = "no-id";
         String[] parts = payload.split("\\|", 2);
-        if (parts.length == 2) {
-            correlationId = parts[0];
-        }
+        if (parts.length != 2) return;
 
-        String output = correlationId + "|" + processed;
+        String correlationId = parts[0];
+        String data = parts[1].toUpperCase(); // пример обработки
 
-        redisTemplate.opsForStream().add("output-stream", Map.of("payload", output));
+        String output = correlationId + "|" + data;
+        redisTemplate.opsForStream().add(
+                ObjectRecord.create("output-stream", Map.of("payload", output))
+        );
 
     }
 }

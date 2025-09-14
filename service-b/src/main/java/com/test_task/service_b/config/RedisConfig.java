@@ -1,7 +1,6 @@
 package com.test_task.service_b.config;
 
 import com.test_task.service_b.listener.InputListener;
-import jakarta.annotation.PostConstruct;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -91,25 +90,4 @@ public class RedisConfig {
         return container;
     }
 
-    @PostConstruct
-    public void createConsumerGroups() {
-        try {
-            // Создаем стримы если их нет
-            try {
-                redisTemplate().opsForStream().add("input-stream", Map.of("init", "init"));
-            } catch (Exception e) {
-                // Стрим уже существует
-            }
-
-            try {
-                redisTemplate().opsForStream()
-                        .createGroup("input-stream", ReadOffset.from("0"), "service-b-group");
-                System.out.println("Created consumer group: service-b-group");
-            } catch (Exception e) {
-                System.out.println("Consumer group service-b-group already exists");
-            }
-        } catch (Exception e) {
-            System.err.println("Error creating consumer groups: " + e.getMessage());
-        }
-    }
 }
